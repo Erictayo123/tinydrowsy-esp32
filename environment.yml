@@ -1,0 +1,27 @@
+name: tinydrowsy
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - torch
+    - torchvision
+    - onnx
+    - onnxruntime
+    - onnxsim
+    - numpy
+    - pandas
+    - matplotlib
+    - seaborn
+    - scikit-learn
+    - pillow
+    - opencv-python
+    - jupyter
+    - notebook
+    - tensorboard
+    - tqdm
+    - pyyaml
+    - optuna  # optional for hyperparameter tuning
