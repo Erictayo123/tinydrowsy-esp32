@@ -8,9 +8,11 @@
 
 \[!\[License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-\[!\[ESP-IDF v5.3.1](https://img.shields.io/badge/ESP--IDF-v5.3.1-blue)](https://github.com/espressif/esp-idf)
+\[!\[ESP-IDF v5.3.3](https://img.shields.io/badge/ESP--IDF-v5.3.3-blue)](https://github.com/espressif/esp-idf)
 
 \[!\[ESP-DL v3.3.5](https://img.shields.io/badge/ESP--DL-v3.3.5-green)](https://github.com/espressif/esp-dl)
+
+\[!\[ESP32-S3](https://img.shields.io/badge/ESP32-S3-red)](https://www.espressif.com/en/products/socs/esp32-s3)
 
 
 
@@ -18,65 +20,55 @@
 
 
 
-TinyDrowsy is an end-to-end embedded AI system for detecting driver drowsiness using eye-state classification. It runs a quantized convolutional neural network (CNN) on an ESP32-S3 with an OV2640 camera, achieving real-time inference at low power and memory footprint.
-
-
-
-\## Features
-
-
-
-\- 🎯 \*\*Custom CNN\*\* optimized for embedded deployment
-
-\- 📸 \*\*Real-time inference\*\* on OV2640 camera frames
-
-\- ⚡ \*\*INT8 quantization\*\* using ESP-PPQ for 4× memory reduction
-
-\- 🧠 \*\*ESP-DL acceleration\*\* leveraging ESP32-S3's AI instructions
-
-\- 🔋 \*\*Low power\*\* (< 100 mA during inference)
-
-\- 📊 \*\*PERCLOS-based\*\* drowsiness metric
-
-\- 🚨 \*\*Alarm output\*\* with LED and buzzer
+TinyDrowsy is an end-to-end embedded AI system for detecting driver drowsiness using eye-state classification. It runs a quantized convolutional neural network (CNN) on an ESP32-S3 with an OV2640 camera, achieving real-time inference with only 27.4 KB of model size.
 
 
 
 \## System Architecture
 
+┌─────────────────────────────────────────────────────────────────┐
+
+│ Training Pipeline │
+
+├─────────────────────────────────────────────────────────────────┤
+
+│ PyTorch CNN → ONNX Export → INT8 Quantization → .espdl │
+
+│ (99.87% acc) (ONNX opset 11) (ESP-PPQ) (27.4 KB) │
+
+└─────────────────────────────────────────────────────────────────┘
+
+↓
+
+┌─────────────────────────────────────────────────────────────────┐
+
+│ Deployment Pipeline │
+
+├─────────────────────────────────────────────────────────────────┤
+
+│ ESP32-S3 ← OV2640 Camera ← ESP-DL v3.3.5 ← ESP-IDF │
+
+│ (8.8 FPS) (64×64 grayscale) (INT8 inference) (v5.3.3) │
+
+└─────────────────────────────────────────────────────────────────┘
 
 
-!\[High-level architecture](docs/architecture/high-level-architecture.png)
+
+\## Key Features
 
 
 
-The pipeline consists of:
+\- 🎯 \*\*99.87% test accuracy\*\* with only 10,690 parameters
 
-1\. PyTorch training → ONNX export
+\- ⚡ \*\*27.4 KB INT8 model\*\* (100× smaller than MobileNetV2)
 
-2\. INT8 quantization using ESP-PPQ
+\- 📸 \*\*Real-time inference\*\* at \~8.8 FPS on ESP32-S3
 
-3\. Firmware inference on ESP32-S3
+\- 🧠 \*\*ESP-DL acceleration\*\* leveraging ESP32-S3's AI instructions
 
-4\. Real-time decision logic
+\- 📊 \*\*PERCLOS-based\*\* drowsiness metric (future work)
 
-
-
-\## Performance
-
-
-
-| Metric | Value |
-
-|--------|-------|
-
-| Inference latency | \~50 ms |
-
-| Model size (flash) | 24 KB |
-
-| RAM usage | \~150 KB |
-
-| Accuracy (quantized) | 95.2% |
+\- 🔋 \*\*Stable memory usage\*\* with 8MB PSRAM
 
 
 
@@ -86,19 +78,39 @@ tinydrowsy-esp32/
 
 ├── src/ # Training and export pipeline
 
+│ ├── data/ # Dataset handling (MRL+CEW, DDD, selfies)
+
+│ ├── models/ # TinyEyeNetV2 model definition
+
+│ ├── training/ # Training scripts
+
+│ └── export/ # ONNX export and quantization
+
 ├── firmware/ # ESP32-S3 firmware
 
-├── docs/ # Documentation and design decisions
+│ ├── main/ # Main application
+
+│ │ ├── main.cpp # Real-time inference loop
+
+│ │ ├── model.cpp # ESP-DL model loading and inference
+
+│ │ ├── model.hpp # Model interface
+
+│ │ ├── camera.cpp # OV2640 camera driver
+
+│ │ └── camera.hpp # Camera interface
+
+│ ├── partitions.csv # Custom 16MB partition table
+
+│ └── sdkconfig.defaults # ESP-IDF configuration
 
 ├── dataset/ # Dataset management
+
+├── docs/ # Documentation and design decisions
 
 ├── hardware/ # Schematics and BOM
 
 └── tools/ # Utility scripts
-
-
-
-text
 
 
 
@@ -110,7 +122,7 @@ text
 
 \- ESP32-S3 development board with OV2640 camera
 
-\- ESP-IDF v5.3.1
+\- ESP-IDF v5.3.3
 
 \- Python 3.11 with dependencies
 
@@ -140,21 +152,23 @@ conda activate tinydrowsy
 
 \# Set up ESP-IDF
 
-get\_idf  # alias to source \~/esp/esp-idf/export.sh
+source \~/esp/esp-idf/export.sh
+
+
 
 Training
 
-bash
+
 
 \# Prepare dataset
 
-python src/data/dataset.py --prepare
+python src/data/prepare\_dataset.py
 
 
 
 \# Train model
 
-python src/training/train.py --config configs/default.yaml
+python src/training/train.py
 
 
 
@@ -168,41 +182,109 @@ python src/export/export\_onnx.py
 
 python src/export/quantize\_espdl.py
 
-Firmware
 
-bash
+
+Firmware Deployment
+
+
 
 cd firmware
 
+idf.py set-target esp32s3
+
 idf.py build
 
-idf.py -p /dev/ttyUSB0 flash monitor
+idf.py -p /dev/ttyACM0 flash monitor
+
+
+
+Performance
+
+
+
+Metric	Value
+
+Model Parameters	10,690
+
+Model Size (quantized)	27.4 KB
+
+Test Accuracy	99.87%
+
+Inference Latency	\~113 ms
+
+FPS	\~8.8
+
+RAM Usage	\~156 KB
+
+Flash Usage	\~1.08 MB
+
+
+
+Hardware Requirements
+
+ESP32-S3-WROOM-1-N16R8 (16MB Flash, 8MB PSRAM)
+
+
+
+OV2640 camera module
+
+
+
+USB-C cable for power and serial
+
+
 
 Design Decisions
 
-See docs/design-decisions/ for detailed explanations of:
+For detailed explanations of design choices, see the design decisions documentation:
 
 
 
-Model architecture choices
+Model Architecture - Why TinyEyeNetV2?
 
 
 
-Quantization strategy
+Quantization Strategy - Why INT8 for ESP32-S3?
 
 
 
-Hardware selection
+Dataset Strategy - Training on multiple sources
 
 
 
-Firmware architecture
+Hardware Selection - Why ESP32-S3?
 
 
 
-License
+Firmware Architecture - ESP-DL integration
 
-MIT License - see LICENSE for details.
+
+
+Troubleshooting
+
+
+
+Camera Not Detected
+
+Check GPIO pin configuration in camera.cpp
+
+
+
+Verify power supply (camera needs stable 3.3V)
+
+
+
+Try reducing XCLK frequency
+
+
+
+Stack Overflow
+
+Increase CONFIG\_ESP\_MAIN\_TASK\_STACK\_SIZE in sdkconfig
+
+
+
+Use static buffers for large arrays
 
 
 
@@ -216,5 +298,15 @@ PyTorch for deep learning framework
 
 
 
-Dataset: MRL Eye Dataset
+MRL Eye Dataset and DDD
+
+
+
+License
+
+MIT License - see LICENSE for details.
+
+
+
+Built with ❤️ for the embedded AI community
 

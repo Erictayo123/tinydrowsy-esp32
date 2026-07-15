@@ -6,6 +6,8 @@ __pycache__/
 # C extensions
 *.so
 
+training_output/best_model.pth
+
 # Distribution / packaging
 .Python
 build/
@@ -152,8 +154,14 @@ components/esp-dl/
 managed_components/
 
 # Dataset large files (optional)
-dataset/raw/*.zip
-dataset/processed/*.npy
+dataset/raw/
+dataset/calibration/
+dataset/closed/
+dataset/invalid/
+dataset/open/
+dataset/train/
+dataset/val/
+dataset/processed/
 *.h5
 *.pb
 *.onnx
@@ -183,3 +191,7 @@ hardware/*.kicad_pcb
 # Temporary files
 tmp/
 temp/
+
+build/
+managed_components/
+sdkconfig

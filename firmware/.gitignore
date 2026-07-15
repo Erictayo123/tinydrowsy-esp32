@@ -1,0 +1,12 @@
+build/
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
+*.out
+*.flash
+*.partitions
+*.csv
+*.log
+*.pyc

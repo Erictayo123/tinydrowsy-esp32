@@ -1,0 +1,91 @@
+# ============================================
+# ESP32-S3 Target
+# ============================================
+CONFIG_IDF_TARGET="esp32s3"
+
+# ============================================
+# Flash Configuration (16MB)
+# ============================================
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE="qio"
+CONFIG_ESPTOOLPY_FLASHFREQ="80m"
+
+# ============================================
+# PSRAM Configuration (8MB Octal)
+# ============================================
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_TYPE_ESPPSRAM64=y
+CONFIG_SPIRAM_SPEED=80
+CONFIG_SPIRAM_BOOT_INIT=y
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y
+
+# ============================================
+# CPU Frequency
+# ============================================
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ=240
+
+# ============================================
+# Compiler Optimization (Debug mode)
+# ============================================
+CONFIG_COMPILER_OPTIMIZATION_DEBUG=y
+CONFIG_OPTIMIZATION_ASSERTIONS_ENABLED=y
+
+# ============================================
+# FreeRTOS
+# ============================================
+CONFIG_FREERTOS_HZ=1000
+
+# ============================================
+# Heap
+# ============================================
+CONFIG_HEAP_POISONING_DISABLED=y
+
+# ============================================
+# Partition Table (Two OTA is missing 33KB)
+# ============================================
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# Make sure these are NOT enabled
+# CONFIG_PARTITION_TABLE_SINGLE_APP is not set
+# CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE is not set
+# CONFIG_PARTITION_TABLE_TWO_OTA is not set
+
+# ============================================
+# Bootloader
+# ============================================
+CONFIG_BOOTLOADER_LOG_LEVEL_INFO=y
+
+# ============================================
+# ESP-DL
+# ============================================
+CONFIG_PIX_CVT_RGB565_TO_GRAY_SUPPORT=y
+CONFIG_PIX_CVT_RGB888_TO_GRAY_SUPPORT=y
+
+# ============================================
+# Camera Configuration
+# ============================================
+CONFIG_CAMERA_OV2640=y
+CONFIG_CAMERA_OV7725=n
+CONFIG_CAMERA_NT99141=n
+
+# ============================================
+# JPEG Decoder (for camera frames)
+# ============================================
+CONFIG_ESP_JPEG_DECODE=y
+CONFIG_ESP_JPEG_ENCODE=y
+
+# ============================================
+# SPI RAM for camera frames
+# ============================================
+CONFIG_SPIRAM_USE_CAPS_ALLOC=y
+CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y
+
+# ============================================
+# Main Task Stack Size (Increased for ESP-DL)
+# ============================================
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384  # 16KB - ample for inference
