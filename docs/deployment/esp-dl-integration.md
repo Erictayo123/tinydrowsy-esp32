@@ -1,108 +1,61 @@
-# \# ESP-DL v3.3.5 Integration Notes
+# ESP-DL v3.3.5 Integration Notes
 
-# 
+## Model Loading
 
-# \## Model Loading
+```cpp
+model = new dl::Model(
+    (const char *)tinydrowsy_int8_espdl_start,
+    fbs::MODEL_LOCATION_IN_FLASH_RODATA,
+    64 * 1024,          // max_internal_size
+    dl::MEMORY_MANAGER_GREEDY,
+    nullptr,
+    true                // param_copy
+);
+```
 
-# 
+## Memory Management
 
-# ```cpp
+- **`max_internal_size = 64KB`** — Internal RAM reserved for critical tensors.
+- **`param_copy = true`** — Copies parameters to PSRAM for faster access during inference.
+- **`fbs::MODEL_LOCATION_IN_FLASH_RODATA`** — Model is embedded directly in flash, avoiding external storage.
 
-# model = new dl::Model(
+## Tensor Access
 
-# &#x20;   (const char \*)tinydrowsy\_int8\_espdl\_start,
+```cpp
+// Input: shape [1, 64, 64, 1], exponent -6
+auto inputs = model->get_inputs();
+dl::TensorBase *input_tensor = inputs.begin()->second;
+int input_exponent = input_tensor->exponent;
 
-# &#x20;   fbs::MODEL\_LOCATION\_IN\_FLASH\_RODATA,
+// Output: shape [1, 2], exponent -3
+auto outputs = model->get_outputs();
+dl::TensorBase *output_tensor = outputs.begin()->second;
+int output_exponent = output_tensor->exponent;
+```
 
-# &#x20;   64 \* 1024,          // max\_internal\_size
+## Quantization / Dequantization
 
-# &#x20;   dl::MEMORY\_MANAGER\_GREEDY,
+```cpp
+// Quantize input (uint8 → [-1,1] → int8)
+float normalized = (pixel / 255.0f - 0.5f) / 0.5f;
+input_ptr[i] = dl::quantize<int8_t>(normalized, DL_RESCALE(input_exponent));
 
-# &#x20;   nullptr,
+// Run inference
+model->run();
 
-# &#x20;   true                // param\_copy
+// Dequantize output (int8 → float)
+float output = dl::dequantize(output_ptr[i], DL_SCALE(output_exponent));
+```
 
-# );
+## Common Pitfalls
 
+1. **Model must be 16-byte aligned** — use `__attribute__((aligned(16)))`.
+2. **Main task stack must be ≥ 16KB** — set `CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384`.
+3. **Large arrays should be static or heap-allocated** — avoid stack allocation for frame buffers or tensors.
+4. **PSRAM is essential** for camera frame buffers — without it, expect allocation failures under load.
 
+## Related Docs
 
-# Memory Management
-
-
-
-# max\_internal\_size = 64KB: Internal RAM for critical tensors
-
-# 
-
-# param\_copy = true: Copy parameters to PSRAM for faster access
-
-# 
-
-# fbs::MODEL\_LOCATION\_IN\_FLASH\_RODATA: Model embedded in flash
-
-# 
-
-# Tensor Access
-
-# cpp
-
-# // Input: shape \[1, 64, 64, 1], exponent -6
-
-# auto inputs = model->get\_inputs();
-
-# dl::TensorBase \*input\_tensor = inputs.begin()->second;
-
-# int input\_exponent = input\_tensor->exponent;
-
-# 
-
-# // Output: shape \[1, 2], exponent -3
-
-# auto outputs = model->get\_outputs();
-
-# dl::TensorBase \*output\_tensor = outputs.begin()->second;
-
-# int output\_exponent = output\_tensor->exponent;
-
-
-
-# Quantization/Dequantization
-
-# cpp
-
-# // Quantize input (uint8 → \[-1,1] → int8)
-
-# float normalized = (pixel / 255.0f - 0.5f) / 0.5f;
-
-# input\_ptr\[i] = dl::quantize<int8\_t>(normalized, DL\_RESCALE(input\_exponent));
-
-# 
-
-# // Run inference
-
-# model->run();
-
-# 
-
-# // Dequantize output (int8 → float)
-
-# float output = dl::dequantize(output\_ptr\[i], DL\_SCALE(output\_exponent));
-
-
-
-# Common Pitfalls
-
-# Model must be 16-byte aligned - Use \_\_attribute\_\_((aligned(16)))
-
-# 
-
-# Main task stack must be >= 16KB - Set CONFIG\_ESP\_MAIN\_TASK\_STACK\_SIZE=16384
-
-# 
-
-# Large arrays should be static or heap-allocated - Avoid stack allocation
-
-# 
-
-# PSRAM is essential for camera frame buffers
-
+- [Model Architecture](../design-decisions/01-model-architecture.md)
+- [Quantization Strategy](../design-decisions/02-quantization-strategy.md)
+- [Firmware Architecture](../design-decisions/05-firmware-architecture.md)
