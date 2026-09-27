@@ -1,16 +1,16 @@
 idf_component_register(
-    SRCS "main.cpp" "model.cpp" "camera.cpp"
+    SRCS "main.cpp" "model.cpp" "camera.cpp" "uart_transmitter.c"
     INCLUDE_DIRS "."
     EMBED_FILES "tinydrowsy_int8.espdl"
-    REQUIRES esp-dl esp32-camera
+    REQUIRES esp-dl esp32-camera driver
 )
 
-# Add custom linker script
+# Custom linker script (model alignment)
 target_link_options(${COMPONENT_LIB} PRIVATE
     -T "${CMAKE_CURRENT_LIST_DIR}/linker.ld"
 )
 
-# Add ESP-DL include directories
+# ESP-DL include directories
 target_include_directories(${COMPONENT_LIB} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../components/esp-dl
     ${CMAKE_CURRENT_LIST_DIR}/../components/esp-dl/dl
