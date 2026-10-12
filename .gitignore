@@ -182,6 +182,8 @@ results/*.json
 # OS
 Thumbs.db
 .DS_Store
+*.win_backup
+*.bak
 
 # Hardware
 hardware/*.brd
@@ -195,3 +197,4 @@ temp/
 build/
 managed_components/
 sdkconfig
+sdkconfig.defaults.bak
