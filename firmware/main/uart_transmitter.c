@@ -25,11 +25,15 @@ static const char *TAG = "UART_TX";
 #define UART_RX_BUFFER_SIZE  1024
 
 /* ============================================================
- * Internal Message (queued between publisher and TX task)
+ * Internal Message (pointer-based, small)
+ *
+ * IMPORTANT: This struct is intentionally tiny (~32 bytes).
+ * The 4 KB frame lives in PSRAM and is freed by the TX task
+ * after the packet is sent. This keeps the task stack small.
  * ============================================================ */
 
 typedef struct {
-    uint8_t  frame_data[MAX_FRAME_SIZE];
+    uint8_t *frame_data;      /* PSRAM buffer, owned by TX task */
     uint16_t frame_len;
     float    open_prob;
     float    closed_prob;
@@ -77,7 +81,7 @@ static uint16_t compute_checksum(const uint8_t *data, size_t len)
 }
 
 /**
- * Build a complete UART packet:
+ * Build a complete UART packet.
  *
  *   Offset  Size  Field
  *   ------  ----  -----
@@ -137,6 +141,10 @@ static size_t build_packet(const tx_message_t *msg,
 
 /* ============================================================
  * Transmitter Task
+ *
+ * Stack frame is small: `packet_buf` is static (.bss) and `msg`
+ * holds only a pointer. The 4 KB frame lives in PSRAM and is
+ * freed after each send.
  * ============================================================ */
 
 static void uart_transmitter_task(void *arg)
@@ -148,8 +156,11 @@ static void uart_transmitter_task(void *arg)
     ESP_LOGI(TAG, "  Max FPS: %d  Queue: %d",
              tx.config.max_fps, tx.config.queue_len);
 
-    /* Packet buffer allocated once */
+    /* Static packet buffer — 4127 bytes in .bss, NOT on stack */
     static uint8_t packet_buf[PACKET_HEADER_SIZE + MAX_FRAME_SIZE];
+
+    /* Small local message (holds pointer, not the frame) */
+    tx_message_t msg;
 
     uint16_t sequence = 0;
     uint32_t last_send_ms = 0;
@@ -157,8 +168,6 @@ static void uart_transmitter_task(void *arg)
 
     tx.fps_window_start_ms = esp_log_timestamp();
     tx.fps_window_frames   = 0;
-
-    tx_message_t msg;
 
     while (tx.running) {
         /* Block until a frame is available */
@@ -180,6 +189,10 @@ static void uart_transmitter_task(void *arg)
         if (pkt_len == 0) {
             ESP_LOGW(TAG, "Packet build failed (frame_len=%u)", msg.frame_len);
             tx.send_errors++;
+            if (msg.frame_data) {
+                heap_caps_free(msg.frame_data);
+                msg.frame_data = NULL;
+            }
             continue;
         }
 
@@ -195,6 +208,12 @@ static void uart_transmitter_task(void *arg)
             tx.bytes_sent += pkt_len;
             sequence++;
             tx.fps_window_frames++;
+        }
+
+        /* --- Free the frame buffer (we own it now) --- */
+        if (msg.frame_data) {
+            heap_caps_free(msg.frame_data);
+            msg.frame_data = NULL;
         }
 
         last_send_ms = now;
@@ -268,7 +287,7 @@ int uart_transmitter_init(const uart_transmitter_config_t *config)
         return -1;
     }
 
-    /* --- Create queue --- */
+    /* --- Create queue (small items — only pointers) --- */
     tx.queue = xQueueCreate(tx.config.queue_len, sizeof(tx_message_t));
     if (!tx.queue) {
         ESP_LOGE(TAG, "Queue creation failed");
@@ -276,12 +295,12 @@ int uart_transmitter_init(const uart_transmitter_config_t *config)
         return -1;
     }
 
-    /* --- Start task --- */
+    /* --- Start task with 6 KB stack (plenty now that msg is a pointer) --- */
     tx.running = true;
     BaseType_t ok = xTaskCreatePinnedToCore(
         uart_transmitter_task,
         "uart_tx",
-        4096,
+        32768,           /* 6 KB stack — msg is now 32 bytes, not 4 KB */
         NULL,
         3,              /* low priority (inference runs at 5) */
         &tx.task,
@@ -316,22 +335,32 @@ int uart_transmitter_publish(const uint8_t *frame_data,
         return -1;
     }
 
-    /* Build message in a local struct, then copy into queue.
-       We avoid heap allocation (SPIRAM) since 4 KB structs on
-       a queue are already efficient. */
-    tx_message_t msg;
-    msg.frame_len  = (uint16_t)frame_len;
-    msg.open_prob  = open_prob;
-    msg.closed_prob = closed_prob;
-    msg.perclos    = perclos;
-    msg.alert_state = (uint8_t)alert_state;
-    msg.fps        = fps;
-    msg.timestamp_ms = esp_log_timestamp();
-    memcpy(msg.frame_data, frame_data, frame_len);
+    /* Allocate a copy of the frame in PSRAM.
+       The TX task will free it after the packet is sent. */
+    uint8_t *copy = (uint8_t *)heap_caps_malloc(
+        frame_len, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!copy) {
+        ESP_LOGW(TAG, "Frame alloc failed (len=%u)", (unsigned)frame_len);
+        tx.frames_dropped++;
+        return -1;
+    }
+    memcpy(copy, frame_data, frame_len);
+
+    tx_message_t msg = {
+        .frame_data   = copy,
+        .frame_len    = (uint16_t)frame_len,
+        .open_prob    = open_prob,
+        .closed_prob  = closed_prob,
+        .perclos      = perclos,
+        .alert_state  = (uint8_t)alert_state,
+        .fps          = fps,
+        .timestamp_ms = esp_log_timestamp(),
+    };
 
     if (xQueueSend(tx.queue, &msg, 0) != pdTRUE) {
+        heap_caps_free(copy);
         tx.frames_dropped++;
-        return -1;   /* queue full */
+        return -1;
     }
     return 0;
 }
