@@ -88,4 +88,5 @@ CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY=y
 # ============================================
 # Main Task Stack Size (Increased for ESP-DL)
 # ============================================
-CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384  # 16KB - ample for inference
+# 16KB - ample for ESP-DL inference + 64x64 frame buffer
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=16384
